@@ -18,8 +18,11 @@
 
 matrix_t *alloc_matrix(unsigned rows, unsigned columns)
 {
-    matrix_t *res = (matrix_t *)malloc(sizeof(matrix_t));
-    res->m = (double *)calloc(columns * rows, sizeof(double));
+    matrix_t *res;
+    double *m;
+    cudaMallocManaged(&res, sizeof(matrix_t));
+    cudaMallocManaged(&m, columns * rows * sizeof(double));
+    res -> m = m;
     res->columns = columns;
     res->rows = rows;
     return res;
@@ -28,8 +31,8 @@ matrix_t *alloc_matrix(unsigned rows, unsigned columns)
 void destroy_matrix(matrix_t *m)
 {
     // printf("free %p %p\n", m, m->m);
-    free(m->m);
-    free(m);
+    cudaFree(m->m);
+    cudaFree(m);
 }
 
 void print_matrix(matrix_t *m, bool is_short)
@@ -109,26 +112,13 @@ void matrix_minus(matrix_t *m1, matrix_t *m2, matrix_t *res)
            (m1->rows == m2->rows) &&
            (m1->rows == res->rows));
 
-    double *d_m1, *d_m2, *d_res;
-
-    CHECK_ERROR(cudaMalloc((void **)&d_m1, m1->rows * m1->columns * sizeof(double)));
-    CHECK_ERROR(cudaMalloc((void **)&d_m2, m2->rows * m2->columns * sizeof(double)));
-    CHECK_ERROR(cudaMalloc((void **)&d_res, m1->rows * m1->columns * sizeof(double)));
-
-    CHECK_ERROR(cudaMemcpy(d_m1, m1->m, m1->rows * m1->columns * sizeof(double), cudaMemcpyHostToDevice));
-    CHECK_ERROR(cudaMemcpy(d_m2, m2->m, m2->rows * m2->columns * sizeof(double), cudaMemcpyHostToDevice));
-
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
     computeMatrixSubGPU<<<gridDim, blockDim>>>(d_m1, d_m2, d_res, m1->rows, m1->columns);
 
-    // Copy from GPU memory to CPU
-    CHECK_ERROR(cudaMemcpy(res->m, d_res, m1->rows * m1->columns * sizeof(double), cudaMemcpyDeviceToHost));
-
-    cudaFree(d_m1);
-    cudaFree(d_m2);
-    cudaFree(d_res);
+    // Synchronize Device
+    cudaDeviceSynchronize();
 }
 
 __global__ void computeMatrixMulGPU(
@@ -156,28 +146,13 @@ void matrix_dot(matrix_t *m1, matrix_t *m2, matrix_t *res)
            (m1->rows == res->rows) &&
            (m2->columns == res->columns));
 
-    double *d_m1, *d_m2, *d_res;
-
-    CHECK_ERROR(cudaMalloc((void **)&d_m1, m1->rows * m1->columns * sizeof(double)));
-    CHECK_ERROR(cudaMalloc((void **)&d_m2, m2->rows * m2->columns * sizeof(double)));
-    CHECK_ERROR(cudaMalloc((void **)&d_res, m1->rows * m2->columns * sizeof(double)));
-
-    CHECK_ERROR(cudaMemcpy(d_m1, m1->m, m1->rows * m1->columns * sizeof(double), cudaMemcpyHostToDevice));
-    CHECK_ERROR(cudaMemcpy(d_m2, m2->m, m2->rows * m2->columns * sizeof(double), cudaMemcpyHostToDevice));
-
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
     computeMatrixMulGPU<<<gridDim, blockDim>>>(d_m1, d_m2, d_res, m1->rows, m1->columns, m2->rows, m2->columns);
 
-    // Copy from GPU memory to CPU
-    CHECK_ERROR(cudaMemcpy(res->m, d_res, m1->rows * m2->columns * sizeof(double), cudaMemcpyDeviceToHost));
-    res->rows = m1->rows;
-    res->columns = m2->columns;
-
-    cudaFree(d_m1);
-    cudaFree(d_m2);
-    cudaFree(d_res);
+    // Synchronize Device
+    cudaDeviceSynchronize();
 }
 
 void matrix_function(matrix_t *m1, double (*f)(double), matrix_t *res)
