@@ -30,6 +30,8 @@ void matrix_function(matrix_t *m1, double (*f)(double), matrix_t *res);
 
 void matrix_transpose(matrix_t *m1, matrix_t *res);
 
+__global__ void computeMatrixSubGPU(double *A, double *B, double *C, int numRows, int numColumns);
+
 void matrix_scalar(matrix_t *m1, double s, matrix_t *res);
 
 __global__ void computeMatrixMulGPU(double *A, double *B, double *C, int numARows, int numAColumns, int numBRows, int numBColumns);
