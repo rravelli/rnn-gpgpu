@@ -22,7 +22,7 @@ matrix_t *alloc_matrix(unsigned rows, unsigned columns)
     double *m;
     cudaMallocManaged(&res, sizeof(matrix_t));
     cudaMallocManaged(&m, columns * rows * sizeof(double));
-    res -> m = m;
+    res->m = m;
     res->columns = columns;
     res->rows = rows;
     return res;
@@ -115,7 +115,7 @@ void matrix_minus(matrix_t *m1, matrix_t *m2, matrix_t *res)
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
-    computeMatrixSubGPU<<<gridDim, blockDim>>>(m1 -> m, m2 -> m, res -> m, m1->rows, m1->columns);
+    computeMatrixSubGPU<<<gridDim, blockDim>>>(m1->m, m2->m, res->m, m1->rows, m1->columns);
 
     // Synchronize Device
     cudaDeviceSynchronize();
@@ -149,8 +149,8 @@ void matrix_dot(matrix_t *m1, matrix_t *m2, matrix_t *res)
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
-    computeMatrixMulGPU<<<gridDim, blockDim>>>(m1 ->m, m2 -> m, res -> m, m1->rows, m1->columns, m2->rows, m2->columns);
-    
+    computeMatrixMulGPU<<<gridDim, blockDim>>>(m1->m, m2->m, res->m, m1->rows, m1->columns, m2->rows, m2->columns);
+
     // Synchronize Device
     cudaDeviceSynchronize();
 }
@@ -166,18 +166,30 @@ void matrix_function(matrix_t *m1, double (*f)(double), matrix_t *res)
     }
 }
 
+__global__ void transposeMatrixGPU(
+    double *A, double *C,
+    int numRows, int numColumns)
+{
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < numRows && col < numColumns)
+    {
+        C[col * numRows + row] = A[row * numColumns + col];
+    }
+}
+
 void matrix_transpose(matrix_t *m1, matrix_t *res)
 {
     assert((m1->columns == res->rows) &&
            (m1->rows == res->columns));
+    // Launch kernel
+    dim3 blockDim(16, 16);
+    dim3 gridDim(ceil(((float)m1->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
+    transposeMatrixGPU<<<gridDim, blockDim>>>(m1->m, res->m, m1->rows, m1->columns);
 
-    for (int row = 0; row < m1->rows; row++)
-    {
-        for (int col = 0; col < m1->columns; col++)
-        {
-            res->m[row + col * m1->rows] = m1->m[col + row * m1->columns];
-        }
-    }
+    // Synchronize Device
+    cudaDeviceSynchronize();
 }
 
 void matrix_scalar(matrix_t *m1, double s, matrix_t *res)
