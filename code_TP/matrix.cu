@@ -192,15 +192,31 @@ void matrix_transpose(matrix_t *m1, matrix_t *res)
     cudaDeviceSynchronize();
 }
 
+__global__ void computeMatrixScalGPU(
+    double *A, double s, double *C,
+    int numRows, int numColumns)
+{
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < numRows && col < numColumns)
+    {
+        C[row * numColumns + col] = A[row * numColumns + col] * s;
+    }
+}
+
 void matrix_scalar(matrix_t *m1, double s, matrix_t *res)
 {
     assert((m1->rows == res->rows) &&
            (m1->columns == res->columns));
 
-    for (int idx = 0; idx < m1->columns * m1->rows; idx++)
-    {
-        res->m[idx] = m1->m[idx] * s;
-    }
+    // Launch kernel
+    dim3 blockDim(16, 16);
+    dim3 gridDim(ceil(((float)m1->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
+    computeMatrixScalGPU<<<gridDim, blockDim>>>(m1->m, s, res->m, m1->rows, m1->columns);
+
+    // Synchronize Device
+    cudaDeviceSynchronize();
 }
 
 void matrix_memcpy(matrix_t *dest, const matrix_t *src)
