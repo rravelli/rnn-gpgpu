@@ -115,7 +115,7 @@ void matrix_minus(matrix_t *m1, matrix_t *m2, matrix_t *res)
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
-    computeMatrixSubGPU<<<gridDim, blockDim>>>(d_m1, d_m2, d_res, m1->rows, m1->columns);
+    computeMatrixSubGPU<<<gridDim, blockDim>>>(m1 -> m, m2 -> m, res -> m, m1->rows, m1->columns);
 
     // Synchronize Device
     cudaDeviceSynchronize();
@@ -149,8 +149,8 @@ void matrix_dot(matrix_t *m1, matrix_t *m2, matrix_t *res)
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
-    computeMatrixMulGPU<<<gridDim, blockDim>>>(d_m1, d_m2, d_res, m1->rows, m1->columns, m2->rows, m2->columns);
-
+    computeMatrixMulGPU<<<gridDim, blockDim>>>(m1 ->m, m2 -> m, res -> m, m1->rows, m1->columns, m2->rows, m2->columns);
+    
     // Synchronize Device
     cudaDeviceSynchronize();
 }
