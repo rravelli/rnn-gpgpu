@@ -106,6 +106,11 @@ void populate_minibatch(double *x, double *y, unsigned *minibatch_idx, unsigned 
 
 int main(int argc, char *argv[])
 {
+    int num_epoch = 4;
+    if (argc > 0)
+    {
+        num_epoch = atoi(argv[1]);
+    }
     srand(time(0));
     unsigned datasize, ntest;
     image *train_img = read_images("train-images.idx3-ubyte", &datasize);
@@ -128,7 +133,7 @@ int main(int argc, char *argv[])
     double *y = (double *)malloc(10 * minibatch_size * sizeof(double));
     matrix_t *out = alloc_matrix(10, minibatch_size);
 
-    for (int epoch = 0; epoch < 2; epoch++)
+    for (int epoch = 0; epoch < num_epoch; epoch++)
     {
         printf("start learning epoch %d\n", epoch);
 
