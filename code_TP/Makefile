@@ -1,5 +1,8 @@
+OUTPUT := build/main
+
+.PHONY: build
 build: 
-	nvcc ann.c main.c matrix.c mnist.c -o output/main
+	nvcc *.c -lm -o $(OUTPUT)
 
 run: 
-	./output/main
+	./$(OUTPUT)
