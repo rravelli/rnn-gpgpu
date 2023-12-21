@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdbool.h>
-
+#include "cuda_runtime.h"
 typedef struct
 {
     double *m;
@@ -31,6 +31,8 @@ void matrix_function(matrix_t *m1, double (*f)(double), matrix_t *res);
 void matrix_transpose(matrix_t *m1, matrix_t *res);
 
 void matrix_scalar(matrix_t *m1, double s, matrix_t *res);
+
+__global__ void computeMatrixMulGPU(double *A, double *B, double *C, int numARows, int numAColumns, int numBRows, int numBColumns);
 
 void matrix_memcpy(matrix_t *dest, const matrix_t *src);
 

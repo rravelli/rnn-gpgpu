@@ -1,7 +1,18 @@
-#include "matrix.h"
+#include <math.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "matrix.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#define CHECK_ERROR(err)                                                                  \
+    {                                                                                     \
+        if (err != cudaSuccess)                                                           \
+        {                                                                                 \
+            printf("%s in %s at line %d\n", cudaGetErrorString(err), __FILE__, __LINE__); \
+            exit(EXIT_FAILURE);                                                           \
+        }                                                                                 \
+    }
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
@@ -90,27 +101,53 @@ void matrix_minus(matrix_t *m1, matrix_t *m2, matrix_t *res)
     }
 }
 
+__global__ void computeMatrixMulGPU(
+    double *A, double *B, double *C,
+    int numARows, int numAColumns,
+    int numBRows, int numBColumns)
+{
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < numARows && col < numBColumns)
+    {
+        float sum = 0;
+        for (int ii = 0; ii < numAColumns; ii++)
+        {
+            sum += A[row * numAColumns + ii] * B[ii * numBColumns + col];
+        }
+        C[row * numBColumns + col] = sum;
+    }
+}
+
 void matrix_dot(matrix_t *m1, matrix_t *m2, matrix_t *res)
 {
     assert((m1->columns == m2->rows) &&
            (m1->rows == res->rows) &&
            (m2->columns == res->columns));
 
-    for (int row = 0; row < m1->rows; row++)
-    {
-        for (int col = 0; col < m2->columns; col++)
-        {
-            int idx = col + row * m2->columns;
-            double var = 0.0;
+    double *d_m1, *d_m2, *d_res;
 
-            for (int ii = 0; ii < m1->columns; ii++)
-            {
-                var += m1->m[ii + row * m1->columns] * m2->m[col + ii * m2->columns];
-            }
+    CHECK_ERROR(cudaMalloc((void **)&d_m1, m1->rows * m1->columns * sizeof(double)));
+    CHECK_ERROR(cudaMalloc((void **)&d_m2, m2->rows * m2->columns * sizeof(double)));
+    CHECK_ERROR(cudaMalloc((void **)&d_res, m1->rows * m2->columns * sizeof(double)));
 
-            res->m[idx] = var;
-        }
-    }
+    CHECK_ERROR(cudaMemcpy(d_m1, m1->m, m1->rows * m1->columns * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_ERROR(cudaMemcpy(d_m2, m2->m, m2->rows * m2->columns * sizeof(double), cudaMemcpyHostToDevice));
+
+    // Launch kernel
+    dim3 blockDim(16, 16);
+    dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
+    computeMatrixMulGPU<<<gridDim, blockDim>>>(d_m1, d_m2, d_res, m1->rows, m1->columns, m2->rows, m2->columns);
+
+    // Copy from GPU memory to CPU
+    CHECK_ERROR(cudaMemcpy(res->m, d_res, m1->rows * m2->columns * sizeof(double), cudaMemcpyDeviceToHost));
+    res->rows = m1->rows;
+    // res->columns = m2->columns;
+
+    cudaFree(d_m1);
+    cudaFree(d_m2);
+    cudaFree(d_res);
 }
 
 void matrix_function(matrix_t *m1, double (*f)(double), matrix_t *res)
