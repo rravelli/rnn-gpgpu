@@ -7,12 +7,12 @@
 
 typedef struct
 {
-    double * m;
+    double *m;
     unsigned columns;
     unsigned rows;
-}  matrix_t;
+} matrix_t;
 
-matrix_t * alloc_matrix(unsigned rows, unsigned columns);
+matrix_t *alloc_matrix(unsigned rows, unsigned columns);
 
 void destroy_matrix(matrix_t *m);
 
