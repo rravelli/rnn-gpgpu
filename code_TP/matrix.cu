@@ -78,6 +78,20 @@ void hadamard_product(matrix_t *m1, matrix_t *m2, matrix_t *res)
     }
 }
 
+__global__ void computeMatrixAddGPU(
+    double *A, double *B, double *C,
+    int numRows, int numColumns)
+{
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < numRows && col < numColumns)
+    {
+        int idx = row * numColumns + col;
+        C[idx] = A[idx] + B[idx];
+    }
+}
+
 void matrix_sum(matrix_t *m1, matrix_t *m2, matrix_t *res)
 {
     assert((m1->columns == m2->columns) &&
@@ -85,10 +99,13 @@ void matrix_sum(matrix_t *m1, matrix_t *m2, matrix_t *res)
            (m1->rows == m2->rows) &&
            (m1->rows == res->rows));
 
-    for (int idx = 0; idx < m1->rows * m1->columns; idx++)
-    {
-        res->m[idx] = m1->m[idx] + m2->m[idx];
-    }
+    // Launch kernel
+    dim3 blockDim(16, 16);
+    dim3 gridDim(ceil(((float)m2->columns) / blockDim.x), ceil(((float)m1->rows) / blockDim.y));
+    computeMatrixAddGPU<<<gridDim, blockDim>>>(m1->m, m2->m, res->m, m1->rows, m1->columns);
+
+    // Synchronize Device
+    cudaDeviceSynchronize();
 }
 
 __global__ void computeMatrixSubGPU(
