@@ -8,6 +8,8 @@
 #include <float.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "backward.h"
+#include "forward.h"
 
 
 double normalRand(double mu, double sigma);
@@ -130,13 +132,7 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 {
     unsigned L = nn->number_of_layers - 1;
 
-    matrix_t *dfzL = alloc_matrix(nn->layers[L]->number_of_neurons, nn->minibatch_size);
-
-    matrix_minus(nn->layers[L]->activations, y, nn->layers[L]->delta);  // delta^(L) = (a^L - y)
-    matrix_function(nn->layers[L]->z, derivative_actfunct, dfzL);       // f'(z^(L))
-    hadamard_product(nn->layers[L]->delta, dfzL, nn->layers[L]->delta); // delta^(L) = (a^L - y) o f'(z^(L))
-
-    destroy_matrix(dfzL);
+    backward_init(nn->layers[L]->activations, y, nn->layers[L]->delta, nn->layers[L]->z);
 
     for (int l = L; l > 1; l--)
     {
@@ -153,6 +149,7 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
         destroy_matrix(tw);
         destroy_matrix(delta_tmp);
         destroy_matrix(dfz);
+        // backward_recursion(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->delta, nn->layers[l - 1]->z);
     }
 
     for (int l = 1; l < nn->number_of_layers; l++)
