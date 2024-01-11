@@ -120,21 +120,7 @@ void forward(ann_t *nn, double (*activation_function)(double))
 {
     for (int l = 1; l < nn->number_of_layers; l++)
     {
-        matrix_t *z1 = alloc_matrix(nn->layers[l]->number_of_neurons, nn->minibatch_size);
-        matrix_t *z2 = alloc_matrix(nn->layers[l]->number_of_neurons, nn->minibatch_size);
-        matrix_t *one = alloc_matrix(1, nn->minibatch_size);
-        for (int idx = 0; idx < one->columns * one->rows; idx++)
-            one->m[idx] = 1.0;
-
-        matrix_dot(nn->layers[l]->weights, nn->layers[l - 1]->activations, z1); // z1 <- w^l x a^(l-1)
-        matrix_dot(nn->layers[l]->biases, one, z2);                             // z2 <- b^l x 1
-        matrix_sum(z1, z2, nn->layers[l]->z);                                   // z^l <- z1 + z2 <=> z^l <- w^l x a^(l-1) + b^l x 1
-
-        matrix_function(nn->layers[l]->z, activation_function, nn->layers[l]->activations); // a^l = f(z^l)
-
-        destroy_matrix(z1);
-        destroy_matrix(z2);
-        destroy_matrix(one);
+        forward_operations(nn, l);
     }
 }
 
