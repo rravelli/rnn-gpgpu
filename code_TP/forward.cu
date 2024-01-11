@@ -9,11 +9,10 @@
 #include <stdint.h>
 #include <assert.h>
 
-__global__ void forwardGPU(double *A, double *B, double *C, double *D, double *res1, double *res2,
+__global__ void forwardGPU(double *A, double *B, double *C, double *res1, double *res2,
                            int numARows, int numAColumns,
                            int numBRows, int numBColumns,
-                           int numCRows, int numCColumns,
-                           int numDRows, int numDColumns)
+                           int numCRows, int numCColumns)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -21,7 +20,7 @@ __global__ void forwardGPU(double *A, double *B, double *C, double *D, double *r
     if (row < numARows && col < numBColumns)
     {
         float sumAB = 0;
-        float sumCD = 0;
+        float sumC = 0;
         int idx = row * numBColumns + col;
         for (int ii = 0; ii < numAColumns; ii++)
         {
@@ -29,9 +28,9 @@ __global__ void forwardGPU(double *A, double *B, double *C, double *D, double *r
         }
         for (int ii = 0; ii < numCColumns; ii++)
         {
-            sumCD += C[row * numCColumns + ii] * D[ii * numDColumns + col];
+            sumC += C[row * numCColumns + ii];
         }
-        res1[idx] = sumAB + sumCD;
+        res1[idx] = sumAB + sumC;
         res2[idx] = 1 / (1 + exp(-res1[idx]));
         
     }
@@ -39,26 +38,14 @@ __global__ void forwardGPU(double *A, double *B, double *C, double *D, double *r
 
 void forward_operations(ann_t *nn, int l)
 {
-
-    // allocations
-    // matrix_t *z1 = alloc_matrix(nn->layers[l]->number_of_neurons, nn->minibatch_size);
-    // matrix_t *z2 = alloc_matrix(nn->layers[l]->number_of_neurons, nn->minibatch_size);
-    matrix_t *one = alloc_matrix(1, nn->minibatch_size);
-    // init one to ones
-    for (int idx = 0; idx < one->columns * one->rows; idx++)
-        one->m[idx] = 1.0;
-
     // check dimensions for w^l x a^(l-1)
     assert(nn->layers[l]->weights->columns == nn->layers[l - 1]->activations->rows);
-
-    // check dimensions for b^l x 1
-    assert(nn->layers[l]->biases->columns == one->rows);
 
     // check dimensions for z^l = w^l x a^(l-1) + b^l x 1
     assert((nn->layers[l]->weights->rows == nn->layers[l]->biases->rows) &&
            (nn->layers[l - 1]->activations->columns == nn->layers[l]->z->columns) &&
-           (nn->layers[l - 1]->activations->columns == one->columns) &&
            (nn->layers[l]->weights->rows == nn->layers[l]->z->rows));
+
     // check dimensions for f(z^l)
     assert((nn->layers[l]->z->columns == nn->layers[l]->activations->columns) &&
            (nn->layers[l]->z->rows == nn->layers[l]->activations->rows));
@@ -67,14 +54,11 @@ void forward_operations(ann_t *nn, int l)
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)nn->layers[l]->activations->columns) / blockDim.x), ceil(((float)nn->layers[l]->activations->rows) / blockDim.y));
     forwardGPU<<<gridDim, blockDim>>>(nn->layers[l]->weights->m, nn->layers[l - 1]->activations->m,
-                                      nn->layers[l]->biases->m, one->m,
+                                      nn->layers[l]->biases->m,
                                       nn->layers[l]->z->m, nn->layers[l]->activations->m,
                                       nn->layers[l]->weights->rows, nn->layers[l]->weights->columns,
                                       nn->layers[l - 1]->activations->rows, nn->layers[l - 1]->activations->columns,
-                                      nn->layers[l]->biases->rows, nn->layers[l]->biases->columns,
-                                      one->rows, one->columns);
+                                      nn->layers[l]->biases->rows, nn->layers[l]->biases->columns);
 
     cudaDeviceSynchronize();
-
-    destroy_matrix(one);
 }

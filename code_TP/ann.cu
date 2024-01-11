@@ -1,5 +1,6 @@
 #include "ann.h"
 #include "matrix.h"
+#include "forward.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -7,6 +8,7 @@
 #include <float.h>
 #include <stdbool.h>
 #include <stdint.h>
+
 
 double normalRand(double mu, double sigma);
 void init_weight(matrix_t *w, unsigned nneurones_prev);

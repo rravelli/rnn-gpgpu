@@ -11,10 +11,9 @@
 
 void forward_operations(ann_t *nn, int l);
 
-__global__ void forwardGPU(double *A, double *B, double *C, double *D,
+__global__ void forwardGPU(double *A, double *B, double *C, double *res1, double *res2,
                            int numARows, int numAColumns,
                            int numBRows, int numBColumns,
-                           int numCRows, int numCColumns,
-                           int numDRows, int numDColumns);
+                           int numCRows, int numCColumns);
 
 #endif
