@@ -9,4 +9,5 @@ void backward_init(matrix_t *a_l, matrix_t *y, matrix_t *delta_l, matrix_t *z_l)
 
 void backward_recursion(matrix_t *w_l, matrix_t *delta_l, matrix_t *delta_lminus1, matrix_t *z_lminus1);
 
+void backward_assign(matrix_t *w_l, matrix_t *delta_l, matrix_t *a_lminus1, float alpha, int m);
 #endif

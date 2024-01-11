@@ -134,35 +134,12 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 
     for (int l = L; l > 1; l--)
     {
-        matrix_t *tw, *delta_tmp, *dfz;
-        tw = alloc_matrix(nn->layers[l - 1]->number_of_neurons, nn->layers[l]->number_of_neurons);
-        delta_tmp = alloc_matrix(nn->layers[l - 1]->number_of_neurons, nn->minibatch_size);
-        dfz = alloc_matrix(nn->layers[l - 1]->number_of_neurons, nn->minibatch_size);
-
-        matrix_transpose(nn->layers[l]->weights, tw);                    // (w^l)T
-        matrix_dot(tw, nn->layers[l]->delta, delta_tmp);                 // (w^l)T x delta^l
-        matrix_function(nn->layers[l - 1]->z, derivative_actfunct, dfz); // f'(z^(l-1))
-        hadamard_product(delta_tmp, dfz, nn->layers[l - 1]->delta);      // delta^(l-1) = (w^l)T x delta^l o f'(z^(l-1))
-
-        destroy_matrix(tw);
-        destroy_matrix(delta_tmp);
-        destroy_matrix(dfz);
-        // backward_recursion(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->delta, nn->layers[l - 1]->z);
+        backward_recursion(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->delta, nn->layers[l - 1]->z);
     }
 
     for (int l = 1; l < nn->number_of_layers; l++)
     {
-        matrix_t *w1, *ta;
-        w1 = alloc_matrix(nn->layers[l]->number_of_neurons, nn->layers[l - 1]->number_of_neurons);
-        ta = alloc_matrix(nn->minibatch_size, nn->layers[l - 1]->number_of_neurons);
-
-        matrix_transpose(nn->layers[l - 1]->activations, ta);             // ta <- (a^(l-1))^T
-        matrix_dot(nn->layers[l]->delta, ta, w1);                         // w1 <- delta^l x (a^(l-1))^T
-        matrix_scalar(w1, nn->alpha / nn->minibatch_size, w1);            // w1 <- alpha /m . delta^l x (a^(l-1))^T
-        matrix_minus(nn->layers[l]->weights, w1, nn->layers[l]->weights); // w^l <- w^l - alpha /m . delta^l x (a^(l-1))^T
-
-        destroy_matrix(w1);
-        destroy_matrix(ta);
+        backward_assign(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->activations, nn->alpha, nn->minibatch_size);
 
         matrix_t *one, *b1;
         b1 = alloc_matrix(nn->layers[l]->number_of_neurons, 1);
