@@ -64,7 +64,7 @@ void backward_recursion(matrix_t *w_l, matrix_t *delta_l, matrix_t *delta_lminus
 }
 
 __global__ void backwardAssignGPU(
-    double *w_l, double *delta_l, double *a_lminus1, float alpha, int m, int numDeltaRows, int numDeltaColumns, int numARows, int numAColumns)
+    double *w_l, double *delta_l, double *a_lminus1, double *b_l, float alpha, int m, int numDeltaRows, int numDeltaColumns, int numARows, int numAColumns)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -73,20 +73,26 @@ __global__ void backwardAssignGPU(
     {
         int idx = row * numARows + col;
         float sum = 0;
+        float sum2 = 0;
         for (int ii = 0; ii < numAColumns; ii++)
         {
             sum += delta_l[row * numDeltaColumns + ii] * a_lminus1[col * numAColumns + ii];
         }
+        for (int ii = 0; ii < numAColumns; ii++)
+        {
+            sum2 += b_l[row * numDeltaColumns + ii];
+        }
         w_l[idx] -= alpha / m * sum;
+        b_l[idx] -= alpha / m * sum2;
     }
 }
 
-void backward_assign(matrix_t *w_l, matrix_t *delta_l, matrix_t *a_lminus1, float alpha, int m)
+void backward_assign(matrix_t *w_l, matrix_t *delta_l, matrix_t *a_lminus1, matrix_t *b_l, float alpha, int m)
 {
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)w_l->columns) / blockDim.x), ceil(((float)w_l->rows) / blockDim.y));
-    backwardAssignGPU<<<gridDim, blockDim>>>(w_l->m, delta_l->m, a_lminus1->m, alpha, m, delta_l->rows, delta_l->columns, a_lminus1->rows, a_lminus1->columns);
+    backwardAssignGPU<<<gridDim, blockDim>>>(w_l->m, delta_l->m, a_lminus1->m, b_l->m, alpha, m, delta_l->rows, delta_l->columns, a_lminus1->rows, a_lminus1->columns);
 
     // Synchronize Device
     cudaDeviceSynchronize();

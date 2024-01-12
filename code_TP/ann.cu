@@ -139,19 +139,6 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 
     for (int l = 1; l < nn->number_of_layers; l++)
     {
-        backward_assign(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->activations, nn->alpha, nn->minibatch_size);
-
-        matrix_t *one, *b1;
-        b1 = alloc_matrix(nn->layers[l]->number_of_neurons, 1);
-        one = alloc_matrix(nn->minibatch_size, 1);
-        for (int idx = 0; idx < one->columns * one->rows; idx++)
-            one->m[idx] = 1.0;
-
-        matrix_dot(nn->layers[l]->delta, one, b1);                      // b1 <- delta^l x 1^T
-        matrix_scalar(b1, nn->alpha / nn->minibatch_size, b1);          // b1 <- alpha / m . delta^l x 1^T
-        matrix_minus(nn->layers[l]->biases, b1, nn->layers[l]->biases); // b^l = b^l - alpha / m . delta^l x 1^T
-
-        destroy_matrix(one);
-        destroy_matrix(b1);
+        backward_assign(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->activations, nn->layers[l]->biases, nn->alpha, nn->minibatch_size);
     }
 }

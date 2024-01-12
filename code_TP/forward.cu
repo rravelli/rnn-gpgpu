@@ -33,8 +33,7 @@ __global__ void forwardGPU(double *A, double *B, double *C, double *D, double *r
         }
         res1[idx] = sumAB + sumCD;
         res2[idx] = 1 / (1 + exp(-res1[idx]));
-        
-    }
+        }
 }
 
 void forward_operations(ann_t *nn, int l)
