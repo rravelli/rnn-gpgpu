@@ -77,9 +77,6 @@ __global__ void backwardAssignGPU(
         for (int ii = 0; ii < numAColumns; ii++)
         {
             sum += delta_l[row * numDeltaColumns + ii] * a_lminus1[col * numAColumns + ii];
-        }
-        for (int ii = 0; ii < numAColumns; ii++)
-        {
             sum2 += b_l[row * numDeltaColumns + ii];
         }
         w_l[idx] -= alpha / m * sum;
