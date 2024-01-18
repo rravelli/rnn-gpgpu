@@ -72,15 +72,22 @@ __global__ void backwardAssignGPU(
     if (row < numDeltaRows && col < numARows)
     {
         int idx = row * numARows + col;
+        bool assignB = (idx < numDeltaRows);
         float sum = 0;
         float sum2 = 0;
         for (int ii = 0; ii < numAColumns; ii++)
         {
             sum += delta_l[row * numDeltaColumns + ii] * a_lminus1[col * numAColumns + ii];
-            sum2 += b_l[row * numDeltaColumns + ii];
+            if (assignB)
+            {
+                sum2 += b_l[row * numDeltaColumns + ii];
+            }
         }
         w_l[idx] -= alpha / m * sum;
-        b_l[idx] -= alpha / m * sum2;
+        if (assignB)
+        {
+            b_l[idx] -= alpha / m * sum2;
+        }
     }
 }
 
