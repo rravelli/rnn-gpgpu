@@ -34,11 +34,20 @@ void backward_init(matrix_t *a_l, matrix_t *y, matrix_t *delta_l, matrix_t *z_l)
 }
 
 __global__ void backwardRecursionGPU(
-    matrix_t **w, matrix_t **delta, matrix_t **z, int numLayers)
+    matrix_t **w, matrix_t **delta, matrix_t **z, matrix_t **a, matrix_t *y, int numLayers)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     float sum;
+    // init
+    if (row < delta[numLayers - 1]->rows && col < delta[numLayers - 1]->columns)
+    {
+        int idx = row * delta[numLayers - 1]->columns + col;
+        double sigmoid = 1 / (1 + exp(-z[numLayers - 1]->m[idx]));
+        delta[numLayers - 1]->m[idx] = (a[numLayers - 1]->m[idx] - y->m[idx]) * sigmoid * (1 - sigmoid);
+    }
+    __syncthreads();
+    // recursion on the layers
     for (int l = numLayers - 1; l > 1; l--)
     {
         if (row < w[l]->columns && col < delta[l]->columns)
@@ -56,13 +65,14 @@ __global__ void backwardRecursionGPU(
     }
 }
 
-void backward_recursion(ann_t *nn)
+void backward_recursion(ann_t *nn, matrix_t *y)
 {
-    matrix_t **w, **delta, **z;
+    matrix_t **w, **delta, **z, **a;
     int numLayers = nn->number_of_layers;
     cudaMallocManaged(&w, numLayers * sizeof(matrix_t));
     cudaMallocManaged(&delta, numLayers * sizeof(matrix_t));
     cudaMallocManaged(&z, numLayers * sizeof(matrix_t));
+    cudaMallocManaged(&a, numLayers * sizeof(matrix_t));
     int maxRows = 0;
     int maxCol = 0;
     for (int i = 0; i < nn->number_of_layers; i++)
@@ -70,6 +80,7 @@ void backward_recursion(ann_t *nn)
         w[i] = nn->layers[i]->weights;
         delta[i] = nn->layers[i]->delta;
         z[i] = nn->layers[i]->z;
+        a[i] = nn->layers[i]->activations;
 
         if (nn->layers[i]->delta->rows > maxRows)
         {
@@ -83,7 +94,7 @@ void backward_recursion(ann_t *nn)
     // Launch kernel
     dim3 blockDim(16, 16);
     dim3 gridDim(ceil(((float)maxCol) / blockDim.x), ceil(((float)maxRows) / blockDim.y));
-    backwardRecursionGPU<<<gridDim, blockDim>>>(w, delta, z, numLayers);
+    backwardRecursionGPU<<<gridDim, blockDim>>>(w, delta, z, a, y, numLayers);
 
     // Synchronize Device
     cudaDeviceSynchronize();

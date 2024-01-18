@@ -131,9 +131,9 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 {
     unsigned L = nn->number_of_layers - 1;
 
-    backward_init(nn->layers[L]->activations, y, nn->layers[L]->delta, nn->layers[L]->z);
+    // backward_init(nn->layers[L]->activations, y, nn->layers[L]->delta, nn->layers[L]->z);
 
-    backward_recursion(nn);
+    backward_recursion(nn, y);
 
     for (int l = 1; l < nn->number_of_layers; l++)
     {
