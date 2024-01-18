@@ -11,7 +11,6 @@
 #include "backward.h"
 #include "forward.h"
 
-
 double normalRand(double mu, double sigma);
 void init_weight(matrix_t *w, unsigned nneurones_prev);
 void print_layer(layer_t *layer);
@@ -134,10 +133,7 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 
     backward_init(nn->layers[L]->activations, y, nn->layers[L]->delta, nn->layers[L]->z);
 
-    for (int l = L; l > 1; l--)
-    {
-        backward_recursion(nn->layers[l]->weights, nn->layers[l]->delta, nn->layers[l - 1]->delta, nn->layers[l - 1]->z);
-    }
+    backward_recursion(nn);
 
     for (int l = 1; l < nn->number_of_layers; l++)
     {

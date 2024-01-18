@@ -34,30 +34,56 @@ void backward_init(matrix_t *a_l, matrix_t *y, matrix_t *delta_l, matrix_t *z_l)
 }
 
 __global__ void backwardRecursionGPU(
-    double *w_l, double *delta_l, double *delta_lminus1, double *z_lminus1, int numWRows, int numWColumns, int numDeltaRows, int numDeltaColumns)
+    matrix_t **w, matrix_t **delta, matrix_t **z, int numLayers)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (row < numWColumns && col < numDeltaColumns)
+    float sum;
+    for (int l = numLayers - 1; l > 1; l--)
     {
-        int idx = row * numDeltaColumns + col;
-        float sum = 0;
-        for (int ii = 0; ii < numDeltaRows; ii++)
+        if (row < w[l]->columns && col < delta[l]->columns)
         {
-            sum += w_l[ii * numWColumns + row] * delta_l[ii * numDeltaColumns + col];
+            int idx = row * delta[l]->columns + col;
+            sum = 0;
+            for (int ii = 0; ii < delta[l]->rows; ii++)
+            {
+                sum += w[l]->m[ii * w[l]->columns + row] * delta[l]->m[ii * delta[l]->columns + col];
+            }
+            double sigmoid = 1 / (1 + exp(-z[l - 1]->m[idx]));
+            delta[l - 1]->m[idx] = sum * sigmoid * (1 - sigmoid);
         }
-        double sigmoid = 1 / (1 + exp(-z_lminus1[idx]));
-        delta_lminus1[idx] = sum * sigmoid * (1 - sigmoid);
+        __syncthreads();
     }
 }
 
-void backward_recursion(matrix_t *w_l, matrix_t *delta_l, matrix_t *delta_lminus1, matrix_t *z_lminus1)
+void backward_recursion(ann_t *nn)
 {
+    matrix_t **w, **delta, **z;
+    int numLayers = nn->number_of_layers;
+    cudaMallocManaged(&w, numLayers * sizeof(matrix_t));
+    cudaMallocManaged(&delta, numLayers * sizeof(matrix_t));
+    cudaMallocManaged(&z, numLayers * sizeof(matrix_t));
+    int maxRows = 0;
+    int maxCol = 0;
+    for (int i = 0; i < nn->number_of_layers; i++)
+    {
+        w[i] = nn->layers[i]->weights;
+        delta[i] = nn->layers[i]->delta;
+        z[i] = nn->layers[i]->z;
+
+        if (nn->layers[i]->delta->rows > maxRows)
+        {
+            maxRows = nn->layers[i]->delta->rows;
+        }
+        if (nn->layers[i]->delta->columns > maxCol)
+        {
+            maxCol = nn->layers[i]->delta->columns;
+        }
+    }
     // Launch kernel
     dim3 blockDim(16, 16);
-    dim3 gridDim(ceil(((float)delta_lminus1->columns) / blockDim.x), ceil(((float)delta_lminus1->rows) / blockDim.y));
-    backwardRecursionGPU<<<gridDim, blockDim>>>(w_l->m, delta_l->m, delta_lminus1->m, z_lminus1->m, w_l->rows, w_l->columns, delta_l->rows, delta_l->columns);
+    dim3 gridDim(ceil(((float)maxCol) / blockDim.x), ceil(((float)maxRows) / blockDim.y));
+    backwardRecursionGPU<<<gridDim, blockDim>>>(w, delta, z, numLayers);
 
     // Synchronize Device
     cudaDeviceSynchronize();
