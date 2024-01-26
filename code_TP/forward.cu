@@ -9,56 +9,66 @@
 #include <stdint.h>
 #include <assert.h>
 
-__global__ void forwardGPU(double *A, double *B, double *C, double *res1, double *res2,
-                           int numARows, int numAColumns,
-                           int numBRows, int numBColumns,
-                           int numCRows, int numCColumns)
+__global__ void forwardGPU(matrix_t **w, matrix_t **a, matrix_t **z, matrix_t **b, int numLayers)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (row < numARows && col < numBColumns)
+    for (int l = 1; l < numLayers; l++)
     {
-        float sumAB = 0;
-        float sumC = 0;
-        int idx = row * numBColumns + col;
-        for (int ii = 0; ii < numAColumns; ii++)
+        if (row < w[l]->rows && col < a[l - 1]->columns)
         {
-            sumAB += A[row * numAColumns + ii] * B[ii * numBColumns + col];
+            float sumAB = 0;
+            int idx = row * a[l - 1]->columns + col;
+
+            // A x B
+            for (int ii = 0; ii < w[l]->columns; ii++)
+            {
+                sumAB += w[l]->m[row * w[l]->columns + ii] * a[l - 1]->m[ii * a[l - 1]->columns + col];
+            }
+            z[l]->m[idx] = sumAB + b[l]->m[row * b[l]->columns]; // res1 = A * B + C
+            a[l]->m[idx] = 1 / (1 + exp(-z[l]->m[idx]));         // res2 = sigmoid(res1)
         }
-        for (int ii = 0; ii < numCColumns; ii++)
-        {
-            sumC += C[row * numCColumns + ii];
-        }
-        res1[idx] = sumAB + sumC;
-        res2[idx] = 1 / (1 + exp(-res1[idx]));
-        
+        __syncthreads();
     }
 }
 
-void forward_operations(ann_t *nn, int l)
+void forward_operations(ann_t *nn)
+/* Makes the following operations for forward :
+    - z^l = w^l x a^(l-1) + b^l x 1
+    - a^l = f(z^l)
+*/
 {
-    // check dimensions for w^l x a^(l-1)
-    assert(nn->layers[l]->weights->columns == nn->layers[l - 1]->activations->rows);
+    matrix_t **w, **a, **z, **b;
+    int numLayers = nn->number_of_layers;
+    cudaMallocManaged(&w, numLayers * sizeof(matrix_t));
+    cudaMallocManaged(&a, numLayers * sizeof(matrix_t));
+    cudaMallocManaged(&z, numLayers * sizeof(matrix_t));
+    cudaMallocManaged(&b, numLayers * sizeof(matrix_t));
+    int maxRows, maxCol;
 
-    // check dimensions for z^l = w^l x a^(l-1) + b^l x 1
-    assert((nn->layers[l]->weights->rows == nn->layers[l]->biases->rows) &&
-           (nn->layers[l - 1]->activations->columns == nn->layers[l]->z->columns) &&
-           (nn->layers[l]->weights->rows == nn->layers[l]->z->rows));
+    for (int i = 0; i < nn->number_of_layers; i++)
+    {
+        w[i] = nn->layers[i]->weights;
+        a[i] = nn->layers[i]->activations;
+        z[i] = nn->layers[i]->z;
+        b[i] = nn->layers[i]->biases;
 
-    // check dimensions for f(z^l)
-    assert((nn->layers[l]->z->columns == nn->layers[l]->activations->columns) &&
-           (nn->layers[l]->z->rows == nn->layers[l]->activations->rows));
+        if (nn->layers[i]->activations->rows > maxRows)
+        {
+            maxRows = nn->layers[i]->activations->rows;
+        }
+        if (nn->layers[i]->activations->columns > maxCol)
+        {
+            maxCol = nn->layers[i]->activations->columns;
+        }
+    }
 
     // Launch kernel
     dim3 blockDim(16, 16);
-    dim3 gridDim(ceil(((float)nn->layers[l]->activations->columns) / blockDim.x), ceil(((float)nn->layers[l]->activations->rows) / blockDim.y));
-    forwardGPU<<<gridDim, blockDim>>>(nn->layers[l]->weights->m, nn->layers[l - 1]->activations->m,
-                                      nn->layers[l]->biases->m,
-                                      nn->layers[l]->z->m, nn->layers[l]->activations->m,
-                                      nn->layers[l]->weights->rows, nn->layers[l]->weights->columns,
-                                      nn->layers[l - 1]->activations->rows, nn->layers[l - 1]->activations->columns,
-                                      nn->layers[l]->biases->rows, nn->layers[l]->biases->columns);
+    dim3 gridDim(ceil(((float)maxCol) / blockDim.x), ceil(((float)maxRows) / blockDim.y));
+    forwardGPU<<<gridDim, blockDim>>>(w, a, z, b, numLayers);
 
+    // Synchronize device
     cudaDeviceSynchronize();
 }

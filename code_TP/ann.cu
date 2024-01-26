@@ -121,15 +121,11 @@ void print_nn(ann_t *nn)
 
 void forward(ann_t *nn, double (*activation_function)(double))
 {
-    for (int l = 1; l < nn->number_of_layers; l++)
-    {
-        forward_operations(nn, l);
-    }
+    forward_operations(nn);
 }
 
 void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 {
-    unsigned L = nn->number_of_layers - 1;
 
     // backward_init(nn->layers[L]->activations, y, nn->layers[L]->delta, nn->layers[L]->z);
 
